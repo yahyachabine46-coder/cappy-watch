@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cappy Watch</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    background: #f2f2f2;
+    font-family: -apple-system, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+    user-select: none;
+    overflow: hidden;
+  }
+  #app { width: 100%; max-width: 220px; text-align: center; padding: 6px; }
+  h1 { font-size: 12px; color: #3c1e07; margin-bottom: 4px; }
+
+  #game {
+    position: relative;
+    width: 100%;
+    height: 100px;
+    background: linear-gradient(to bottom, #c6f7ff 72%, #b2ebf2 72%);
+    border: 3px solid #3c1e07;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  #cap {
+    position: absolute;
+    width: 24px;
+    height: 15px;
+    left: 8px;
+    bottom: 20px;
+    background: #d7995b;
+    border: 2px solid #3c1e07;
+    border-radius: 10px 12px 7px 8px;
+  }
+  #cap::before {
+    content: '';
+    position: absolute;
+    top: -1px; right: -5px;
+    width: 10px; height: 12px;
+    background: #8d532a;
+    border: 2px solid #3c1e07;
+    border-radius: 4px 6px 5px 4px;
+  }
+  #cap .leg {
+    position: absolute;
+    bottom: -5px;
+    width: 4px; height: 5px;
+    background: #3c1e07;
+    border-radius: 0 0 2px 2px;
+  }
+  #cap .leg1 { right: 2px; }
+  #cap .leg2 { left: 4px; }
+  #cap.running .leg1 { animation: legswing .12s infinite alternate; }
+  #cap.running .leg2 { animation: legswing .12s infinite alternate-reverse; }
+  @keyframes legswing {
+    0% { transform: translateY(0) rotate(-14deg); }
+    100% { transform: translateY(-1px) rotate(14deg); }
+  }
+  #cap .eye {
+    position: absolute;
+    top: 3px; right: 3px;
+    width: 3px; height: 2px;
+    background: #3c1e07;
+    border-radius: 1px;
+    z-index: 2;
+  }
+  #cap .blush {
+    position: absolute;
+    top: 6px; right: 0px;
+    width: 4px; height: 3px;
+    background: #ff6b6b;
+    border-radius: 50%;
+    z-index: 1;
+  }
+
+  .croc {
+    position: absolute;
+    bottom: 20px;
+    width: 30px; height: 12px;
+    background: #4caf50;
+    border: 2px solid #3c1e07;
+    border-radius: 10px 4px 4px 4px;
+  }
+  .croc::before {
+    content: '▲▲▲';
+    position: absolute;
+    top: -6px; left: 4px;
+    font-size: 5px;
+    color: #1b5e20;
+    letter-spacing: -1px;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #3c1e07;
+    text-align: center;
+    padding: 4px;
+  }
+  #overlay.hidden { display: none; }
+
+  #hud { display: flex; justify-content: space-between; font-size: 10px; color: #3c1e07; margin-top: 4px; }
+
+  #jump-btn {
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 0;
+    font-size: 13px;
+    font-weight: bold;
+    color: #3c1e07;
+    background: #d7995b;
+    border: 3px solid #3c1e07;
+    border-radius: 10px;
+  }
+  #jump-btn:active { background: #8d532a; color: #fff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>🍊 Cappy Watch</h1>
+  <div id="game">
+    <div id="cap" class="running">
+      <div class="leg leg1"></div>
+      <div class="leg leg2"></div>
+      <div class="eye"></div>
+      <div class="blush"></div>
+    </div>
+    <div id="overlay">
+      <div>Tap JUMP<br>to start</div>
+    </div>
+  </div>
+  <div id="hud">
+    <span id="score">Score: 0</span>
+    <span id="best">Best: 0</span>
+  </div>
+  <button id="jump-btn" type="button">⬆ JUMP</button>
+</div>
+
+<script>
+(function () {
+  var game = document.getElementById("game");
+  var cap = document.getElementById("cap");
+  var overlay = document.getElementById("overlay");
+  var scoreEl = document.getElementById("score");
+  var bestEl = document.getElementById("best");
+  var jumpBtn = document.getElementById("jump-btn");
+
+  var GROUND = 20;
+  var posY = GROUND;
+  var velY = 0;
+  var gravity = 0.8;
+  var jumpForce = 10.5;
+  var holding = false;
+
+  var running = false;
+  var gameOver = true;
+  var score = 0;
+  var best = 0;
+  try { best = parseInt(localStorage.getItem("cappyWatchBest") || "0", 10) || 0; } catch (e) {}
+  bestEl.textContent = "Best: " + best;
+
+  var obstacles = [];
+  var speed = 2.2;
+  var spawnTimer = 0;
+  var nextSpawn = 40;
+  var gameWidth = 200;
+  var raf = null;
+
+  function updateGameWidth() {
+    gameWidth = game.getBoundingClientRect().width || 200;
+  }
+  window.addEventListener("resize", updateGameWidth);
+  updateGameWidth();
+
+  function jump() {
+    if (posY === GROUND && running) {
+      velY = jumpForce;
+      holding = true;
+      cap.classList.remove("running");
+    }
+  }
+
+  function physics() {
+    if (!holding && velY > 3) velY = 3;
+    velY -= gravity;
+    posY += velY;
+    if (posY <= GROUND) {
+      posY = GROUND;
+      velY = 0;
+      if (!gameOver) cap.classList.add("running");
+    }
+    cap.style.bottom = posY + "px";
+  }
+
+  function spawnObstacle() {
+    var el = document.createElement("div");
+    el.className = "croc";
+    el.style.left = gameWidth + "px";
+    game.appendChild(el);
+    obstacles.push({ el: el, left: gameWidth });
+  }
+
+  function collides(left) {
+    var w = 30, h = 12;
+    var obsTop = GROUND + h;
+    var capLeft = 8, capRight = 8 + 24 - 4;
+    var capBottom = posY, capTop = posY + 15 - 2;
+    var hitLeft = left + w * 0.15, hitRight = left + w * 0.9;
+    return capRight > hitLeft && capLeft < hitRight && capBottom < obsTop && capTop > GROUND;
+  }
+
+  function loop() {
+    if (gameOver || !running) return;
+    physics();
+    score++;
+    scoreEl.textContent = "Score: " + Math.floor(score / 5);
+
+    if (score % 300 === 0 && speed < 5) speed += 0.2;
+
+    spawnTimer++;
+    if (spawnTimer > nextSpawn) {
+      spawnObstacle();
+      spawnTimer = 0;
+      nextSpawn = 30 + Math.random() * 30;
+    }
+
+    for (var i = obstacles.length - 1; i >= 0; i--) {
+      var o = obstacles[i];
+      o.left -= speed;
+      o.el.style.left = o.left + "px";
+      if (collides(o.left)) { endGame(); return; }
+      if (o.left < -40) { o.el.remove(); obstacles.splice(i, 1); }
+    }
+
+    raf = requestAnimationFrame(loop);
+  }
+
+  function startGame() {
+    updateGameWidth();
+    overlay.classList.add("hidden");
+    running = true;
+    gameOver = false;
+    cap.classList.add("running");
+    raf = requestAnimationFrame(loop);
+  }
+
+  function endGame() {
+    gameOver = true;
+    running = false;
+    cap.classList.remove("running");
+    var finalScore = Math.floor(score / 5);
+    if (finalScore > best) {
+      best = finalScore;
+      bestEl.textContent = "Best: " + best;
+      try { localStorage.setItem("cappyWatchBest", String(best)); } catch (e) {}
+    }
+    overlay.innerHTML = "Score: " + finalScore + "<br>Tap JUMP to retry";
+    overlay.classList.remove("hidden");
+    if (raf) cancelAnimationFrame(raf);
+  }
+
+  function resetAndStart() {
+    obstacles.forEach(function (o) { o.el.remove(); });
+    obstacles = [];
+    score = 0;
+    speed = 2.2;
+    spawnTimer = 0;
+    nextSpawn = 40;
+    posY = GROUND;
+    velY = 0;
+    holding = false;
+    scoreEl.textContent = "Score: 0";
+    startGame();
+  }
+
+  jumpBtn.addEventListener("pointerdown", function (e) {
+    e.preventDefault();
+    if (gameOver) { resetAndStart(); return; }
+    if (!running) { startGame(); return; }
+    jump();
+  });
+  jumpBtn.addEventListener("pointerup", function () { holding = false; });
+  jumpBtn.addEventListener("pointercancel", function () { holding = false; });
+})();
+</script>
+</body>
+</html>
