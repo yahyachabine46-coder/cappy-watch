@@ -40,6 +40,7 @@
     background: #d7995b;
     border: 2px solid #3c1e07;
     border-radius: 10px 12px 7px 8px;
+    transition: transform 0.15s ease-out;
   }
   #cap::before {
     content: '';
@@ -97,6 +98,14 @@
     font-size: 5px;
     color: #1b5e20;
     letter-spacing: -1px;
+  }
+  .croc::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 3px;
+    width: 3px; height: 3px;
+    background: #3c1e07;
+    border-radius: 50%;
   }
 
   #overlay {
@@ -163,8 +172,8 @@
   var GROUND = 20;
   var posY = GROUND;
   var velY = 0;
-  var gravity = 0.8;
-  var jumpForce = 10.5;
+  var gravity = 0.27;
+  var jumpForce = 12.5;
   var holding = false;
 
   var running = false;
@@ -175,9 +184,9 @@
   bestEl.textContent = "Best: " + best;
 
   var obstacles = [];
-  var speed = 2.2;
+  var speed = 2.55;
   var spawnTimer = 0;
-  var nextSpawn = 40;
+  var nextSpawn = 95;
   var gameWidth = 200;
   var raf = null;
 
@@ -204,7 +213,20 @@
       velY = 0;
       if (!gameOver) cap.classList.add("running");
     }
+    var maxY = 100 - 15 - 4; // game height - capybara height - small margin
+    if (posY > maxY) {
+      posY = maxY;
+      if (velY > 0) velY = 0;
+    }
     cap.style.bottom = posY + "px";
+
+    if (posY === GROUND) {
+      cap.style.transform = "rotate(0deg)";
+    } else if (velY > 0) {
+      cap.style.transform = "rotate(-12deg)";
+    } else {
+      cap.style.transform = "rotate(8deg)";
+    }
   }
 
   function spawnObstacle() {
@@ -230,13 +252,13 @@
     score++;
     scoreEl.textContent = "Score: " + Math.floor(score / 5);
 
-    if (score % 300 === 0 && speed < 5) speed += 0.2;
+    if (score % 300 === 0 && speed < 7) speed += 0.25;
 
     spawnTimer++;
     if (spawnTimer > nextSpawn) {
       spawnObstacle();
       spawnTimer = 0;
-      nextSpawn = 30 + Math.random() * 30;
+      nextSpawn = 85 + Math.random() * 55;
     }
 
     for (var i = obstacles.length - 1; i >= 0; i--) {
@@ -278,9 +300,9 @@
     obstacles.forEach(function (o) { o.el.remove(); });
     obstacles = [];
     score = 0;
-    speed = 2.2;
+    speed = 2.55;
     spawnTimer = 0;
-    nextSpawn = 40;
+    nextSpawn = 95;
     posY = GROUND;
     velY = 0;
     holding = false;
